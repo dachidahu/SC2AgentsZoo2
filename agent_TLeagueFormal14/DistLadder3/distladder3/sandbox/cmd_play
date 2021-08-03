@@ -1,0 +1,34 @@
+# single machine
+# human
+python -m distladder3.bin.play_vs_remote_agent \
+  --port 7987 \
+  --map KairosJunction \
+  --game_version 4.7.1 \
+  --human \
+  --replay_dir /Users/pengsun/code/tmp/tmp_human_replay
+
+# agent
+python -m distladder3.bin.play_vs_remote_agent \
+  --port 7987 \
+  --map KairosJunction \
+  --game_version 4.7.1 \
+  --replay_dir /Users/pengsun/code/tmp/tmp_agt_replay \
+  -p Z2,/Users/pengsun/code/SC2AgentsZoo2/agent_TLeagueFormal2,baseline_mnet_tr0925-formal/agent_config_0112_0128_20190929045139_zergling.ini
+# agent
+python -m distladder3.bin.play_vs_remote_agent \
+  --port 7987 \
+  --map KairosJunction \
+  --game_version 4.7.1 \
+  --replay_dir /Users/pengsun/code/tmp/tmp_agt_replay \
+  -p Z2,/Users/pengsun/code/SC2AgentsZoo2/agent_TLeagueFormal2,baseline_mnet_tr0925-formal/agent_config_0111_0125_20190929045212_roach.ini
+
+
+# two different machines
+# human
+python -m distladder3.bin.play_vs_remote_agent \
+  --port 7987 \
+  --map KairosJunction \
+  --game_version 4.7.1 \
+  --human \
+  --replay_dir /Users/pengsun/code/tmp/tmp_human_replay \
+  --remote 10.70.100.136

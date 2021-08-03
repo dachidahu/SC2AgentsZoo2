@@ -1,0 +1,158 @@
+{# common #}
+{% set rp_name = "rp1809dbg2" %}
+{% set image = "ccr.ccs.tencentyun.com/sc2ai/tleague-sciimv11:20200609121204" %}
+{% set docker_registry_credential = "tke-dockreg-cred" %}
+{% set pvc_name = "pvc-share-full" %}
+{% set replay_dir_pvc = "replays/extmv10_zvz" %}
+{% set replay_dir_local = "/root/extmv10_zvz" %}
+{% set info_csv_path_pvc = "replays/471_48x_49x_mv9.filter.shuffle.mmr3500.DupVal500.csv" %}
+{% set info_csv_path_local = "/root/471_48x_49x_mv9.filter.shuffle.mmr3500.DupVal500.csv" %}
+{% set zstat_data_src_pvc = "replay_ds/rp1706-mv9-zstat" %}
+{% set zstat_data_src_local = "/root/rp1706-mv9-zstat" %}
+{% set output_dir_pvc = "replay_ds/misc"  %}
+{% set output_dir_local = "/root/misc"%}
+{# master #}
+{% set master_port = 7788 %}
+{# worker #}
+{% set n_workers = 1 %}
+{% set step_mul = 1 %}
+{# miscellaneous #}
+{% set use_node_selector = True %}
+{% set use_resource = True %}
+
+
+{# --- master --- #}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ rp_name }}-rp-master
+  labels:
+    name: {{ rp_name }}
+    job: rp-master
+spec:
+  selector:
+    name: {{ rp_name }}
+    job: rp-master
+  ports:
+  - port: {{ master_port }}
+    name: master-port
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ rp_name }}-rp-master
+  labels:
+    name: {{ rp_name }}
+    job: rp-master
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ rp_name }}
+        job: rp-master
+    spec:
+{% if use_node_selector %}
+      nodeSelector:
+        type: cpu
+{% endif %}
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ rp_name }}-rp-master
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: {{ master_port }}
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+{% endif %}
+        volumeMounts:
+          - mountPath: {{ info_csv_path_local }}
+            name: data-dir
+            subPath: {{ info_csv_path_pvc }}
+          - mountPath: {{ output_dir_local }}
+            name: data-dir
+            subPath: {{ output_dir_pvc }}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "timitate.bin6.run_dbg_converter_from_info_csv"
+        - "--role=master"
+        - "--master_port={{ master_port }}"
+        - "--info_csv_path={{ info_csv_path_local }}"
+        - "--output_path={{ output_dir_local }}/{{ rp_name }}.txt"
+
+
+{# --- workers --- #}
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ rp_name }}-rp-worker
+  labels:
+    name: {{ rp_name }}
+    job: rp-worker
+spec:
+  replicas: {{ n_workers }}
+  template:
+    metadata:
+      labels:
+        name: {{ rp_name }}
+        job: rp-worker
+    spec:
+{% if use_node_selector %}
+      nodeSelector:
+        type: cpu
+{% endif %}
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ rp_name }}-rp-worker
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - mountPath: {{ replay_dir_local }}
+            name: data-dir
+            subPath: {{ replay_dir_pvc }}
+          - mountPath: {{ zstat_data_src_local }}
+            name: data-dir
+            subPath: {{ zstat_data_src_pvc }}
+          - mountPath: {{ output_dir_local }}
+            name: data-dir
+            subPath: {{ output_dir_pvc }}
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 1500m
+            memory: 3.0Gi
+{% endif %}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "timitate.bin6.run_dbg_converter_from_info_csv"
+        - "--role=worker"
+        - "--master_port={{ master_port }}"
+        - "--master_hostname={{ rp_name }}-rp-master"
+        - "--replay_dir={{ replay_dir_local }}"
+        - "--zstat_data_src={{ zstat_data_src_local }}"
+        - "--step_mul={{ step_mul }}"
+        - "--sc2mv_bin_root=/root"

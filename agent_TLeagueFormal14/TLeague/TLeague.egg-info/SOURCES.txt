@@ -1,0 +1,9 @@
+README.md
+setup.py
+TLeague.egg-info/PKG-INFO
+TLeague.egg-info/SOURCES.txt
+TLeague.egg-info/dependency_links.txt
+TLeague.egg-info/requires.txt
+TLeague.egg-info/top_level.txt
+tleague/__init__.py
+tleague/bin/tleague_horovodrun

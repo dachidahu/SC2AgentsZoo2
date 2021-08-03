@@ -1,0 +1,1 @@
+In this folder are scripts that can be run in a single machine various data cleaning routines.

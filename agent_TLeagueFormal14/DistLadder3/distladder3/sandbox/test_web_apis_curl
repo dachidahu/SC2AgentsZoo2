@@ -1,0 +1,23 @@
+# player-names
+curl http://127.0.0.1:8848/api/v1/player-names \
+    -X GET
+
+["Default_AI_6", "IL-model_20190304175321", "init_model:0004_20190812135521", "init_model:0002_20190812135511", "0004:0012_20190813213408", "0002:0010_20190813220825", "0012:0018_20190814155534", "0012:0018_20190814165218"]
+
+
+# match-manager
+curl http://127.0.0.1:8848/api/v1/match-manager \
+    -X PUT \
+    -d "player_name0=init_model:0004_20190812135521" \
+    -d "player_name1=0004:0012_20190812135534" \
+    -d "n_matches_scheduled=42"
+
+{"player_name0": "init_model:0004_20190812135521", "player_name1": "0004:0012_20190812135534", "n_successful_matches_scheduled": 42}
+
+
+curl http://127.0.0.1:8848/api/v1/match-manager \
+    -X GET \
+    -d "player_name0=init_model:0004_20190812135521" \
+    -d "player_name1=0004:0012_20190812135534"
+
+{"player_name0": "init_model:0004_20190812135521", "player_name1": "0004:0012_20190812135534", "n_matches_finished": 42, "player0_winrate": 0.9, "player1_winrate": 0.1}

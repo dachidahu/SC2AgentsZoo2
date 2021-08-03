@@ -1,0 +1,7 @@
+job,ip,port1,port2,cuda_visible_devices,ssh_username,ssh_password,ssh_port,learner_id
+learner,10.68.102.85,10001,10002,,,,,1
+learner,10.68.102.85,10003,10004,,,,,1
+actor,10.68.102.85,20001,,,,,,
+actor,10.68.102.85,20002,,,,,,
+model_pool,10.68.102.85,10005,10006,,,,,
+league_mgr,10.68.102.85,10007,,,,,,

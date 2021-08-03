@@ -1,0 +1,718 @@
+{# common #}
+{% set backend_name = "evbackend1326a" %}
+{% set chkpoints = "tr1322-astar_chkpoints" %}
+{% set image = "ccr.ccs.tencentyun.com/sc2ai/distladder3-sc2agentszoo2-scii471:20200125221138" %}
+{% set docker_registry_credential = "tke-dockreg-cred" %}
+{% set pvc_name = "pvc-share-full" %}
+{% set chkpoints_root_dir_local = "/root/work/" + chkpoints %}
+{% set chkpoints_root_dir_pvc = "chkpoints_zoo/" + chkpoints %}
+{% set eval_working_dir_local = "/root/work/" + backend_name %}
+{% set eval_working_dir_pvc = "eval_results/" + backend_name %}
+{% set replay_ds_dir_local = "/root/replay_ds/rp1309-mv-zstat-rz" %}
+{% set replay_ds_dir_pvc = "replay_ds/rp1309-mv-zstat-rz" %}
+{# chkpoint player maker #}
+{% set agent_dir = "/root/work/SC2AgentsZoo2/agent_TLeagueFormal8" %}
+{% set agent_config_kvs = [
+    "tleague_interface_func_name,make_sc2full_v4_interface",
+    "tleague_interface_config.zstat_data_src,/root/replay_ds/rp1309-mv-zstat-rz",
+    "tleague_interface_config.mmr,7000",
+    "tleague_interface_config.dict_space,True",
+    "use_mnet_v4_model,False",
+    "policy_type,tpolicies.net_zoo.mnet_v5.mnet_v5",
+    "policy_config.test,True",
+    "policy_config.use_loss_type,none",
+    "policy_config.use_self_fed_heads,True",
+    "policy_config.use_value_head,True",
+    "policy_config.n_v,5",
+    "policy_config.use_lstm,True",
+    "policy_config.lstm_layer_norm,True",
+    "policy_config.nlstm,256",
+    "policy_config.hs_len,512",
+    "policy_config.lstm_cell_type,lstm",
+    "policy_config.lstm_duration,1",
+    "policy_config.lstm_dropout_rate,0.0",
+    "policy_config.use_base_mask,True"
+] %}
+{% set watched_chkpoints_root_dir_local = chkpoints_root_dir_local %}
+{% set watched_chkpoints_root_dir_pvc = chkpoints_root_dir_pvc %}
+{% set output_agent_configs_dir_local = eval_working_dir_local + "/agent_configs" %}
+{% set output_agent_configs_dir_pvc = eval_working_dir_pvc + "/agent_configs" %}
+{# player manager #}
+{% set pm_port = 5526 %}
+{% set pm_working_dir_local = eval_working_dir_local %}
+{% set pm_working_dir_pvc = eval_working_dir_pvc %}
+{% set predef_players = [
+    "Default_AI_1,./,.",
+    "Default_AI_2,./,.",
+    "Default_AI_3,./,.",
+    "Default_AI_4,./,.",
+    "Default_AI_5,./,.",
+    "Default_AI_6,./,.",
+    "Default_AI_7,./,.",
+    "Default_AI_8,./,.",
+    "Default_AI_9,./,.",
+    "Default_AI_10,./,.",
+    "0925IL,/root/work/SC2AgentsZoo2/agent_TLeagueFormal2,baseline_mnet_il/agent_config.ini",
+    "0925R1,/root/work/SC2AgentsZoo2/agent_TLeagueFormal2,baseline_mnet_tr0925-formal/agent_config_0111_0125_20190929045212_roach.ini",
+    "0925Z1,/root/work/SC2AgentsZoo2/agent_TLeagueFormal2,baseline_mnet_tr0925-formal/agent_config_init_model_0008_20190925204933_zergling.ini",
+    "0925Z2,/root/work/SC2AgentsZoo2/agent_TLeagueFormal2,baseline_mnet_tr0925-formal/agent_config_0112_0128_20190929045139_zergling.ini"
+] %}
+{# match scheduler #}
+{% set msch_port = 5536 %}
+{# match server #}
+{% set mser_port = 5546 %}
+{% set output_pgn_dir_local = eval_working_dir_local + "/pgn_files" %}
+{% set output_pgn_dir_pvc = eval_working_dir_pvc + "/pgn_files" %}
+{# match worker #}
+{% set n_workers = 1 %}
+{% set sc2_port = 13800 %}
+{% set sc2_game_version = "4.7.1" %}
+{% set sc2_map = "KairosJunction" %}
+{% set worker_logs_dir_local = eval_working_dir_local + "/worker_logs" %}
+{% set worker_logs_dir_pvc = eval_working_dir_pvc + "/worker_logs" %}
+{# pgn ratings #}
+{% set watched_pgn_files_dir_local = output_pgn_dir_local %}
+{% set watched_pgn_files_dir_pvc = output_pgn_dir_pvc %}
+{% set pr_output_dir_local = eval_working_dir_local + "/results" %}
+{% set pr_output_dir_pvc = eval_working_dir_pvc + "/results" %}
+{# results collector #}
+{% set rc_port = 5566 %}
+{% set watched_results_dir_local = pr_output_dir_local %}
+{% set watched_results_dir_pvc = pr_output_dir_pvc %}
+{# web service #}
+{% set web_port = 8888 %}
+{# web apis #}
+{% set web_apis_port = 8848 %}
+{# miscellaneous #}
+{% set use_resource = True %}
+{% set run_chkpoint_player_maker = True %}
+{% set run_player_manager = True %}
+{% set run_match_scheduler = True %}
+{% set run_match_server = True %}
+{% set run_match_worker = True %}
+{% set run_pgn_ratings = True %}
+{% set run_results_collector = True %}
+{% set run_web_svc = True %}
+{% set run_web_apis = False %}
+
+
+{# --- chkpoint player maker --- #}
+{% if run_chkpoint_player_maker %}
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ backend_name }}-chkpoint-player-maker
+  labels:
+    name: {{ backend_name }}
+    job: chkpoint-player-maker
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ backend_name }}
+        job: chkpoint-player-maker
+    spec:
+      nodeSelector:
+        type: cpu
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ backend_name }}-chkpoint-player-maker
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 1
+            memory: 2Gi
+{% endif %}
+        volumeMounts:
+          - mountPath: {{ watched_chkpoints_root_dir_local }}
+            name: data-dir
+            subPath: {{ watched_chkpoints_root_dir_pvc }}
+          - mountPath: {{ output_agent_configs_dir_local }}
+            name: data-dir
+            subPath: {{ output_agent_configs_dir_pvc }}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "distladder3.bin.run_greedy_chkpoint_player_maker"
+        - "--player_manager_endpoint={{ backend_name }}-player-manager:{{ pm_port }}"
+        - "--agent_dir={{ agent_dir }}"
+{% for kv in agent_config_kvs %}
+        - "--agent_config_kv={{ kv }}"
+{% endfor %}
+        - "--watched_chkpoints_root_dir={{ watched_chkpoints_root_dir_local }}"
+        - "--output_agent_configs_dir={{ output_agent_configs_dir_local }}"
+{% endif %}
+{# endif run_chkpoint_player_maker #}
+
+{# --- player manager --- #}
+{% if run_player_manager %}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ backend_name }}-player-manager
+  labels:
+    name: {{ backend_name }}
+    job: player-manager
+spec:
+  selector:
+    name: {{ backend_name }}
+    job: player-manager
+  ports:
+  - port: {{ pm_port }}
+    name: pm-port
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ backend_name }}-player-manager
+  labels:
+    name: {{ backend_name }}
+    job: player-manager
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ backend_name }}
+        job: player-manager
+    spec:
+      nodeSelector:
+        type: cpu
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ backend_name }}-player-manager
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: {{ pm_port }}
+        volumeMounts:
+          - mountPath: {{ pm_working_dir_local }}
+            name: data-dir
+            subPath: {{ pm_working_dir_pvc }}
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+{% endif %}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "distladder3.bin.run_player_manager"
+        - "--port={{ pm_port }}"
+        - "--working_dir={{ pm_working_dir_local }}"
+{% for pp in predef_players %}
+        - "--predef_player={{ pp }}"
+{% endfor %}
+{% endif %}
+{# endif run_player_manager #}
+
+{# --- match scheduler --- #}
+{% if run_match_scheduler %}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ backend_name }}-match-scheduler
+  labels:
+    name: {{ backend_name }}
+    job: match-scheduler
+spec:
+  selector:
+    name: {{ backend_name }}
+    job: match-scheduler
+  ports:
+  - port: {{ msch_port }}
+    name: msch-port
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ backend_name }}-match-scheduler
+  labels:
+    name: {{ backend_name }}
+    job: match-scheduler
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ backend_name }}
+        job: match-scheduler
+    spec:
+      nodeSelector:
+        type: cpu
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ backend_name }}-match-scheduler
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: {{ mser_port }}
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+{% endif %}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "distladder3.bin.run_match_scheduler"
+        - "--port={{ msch_port }}"
+        - "--match_server_endpoint={{ backend_name }}-match-server:{{ mser_port }}"
+{% endif %}
+{# endif run_match_scheduler #}
+
+{# --- match server --- #}
+{% if run_match_server %}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ backend_name }}-match-server
+  labels:
+    name: {{ backend_name }}
+    job: match-server
+spec:
+  selector:
+    name: {{ backend_name }}
+    job: match-server
+  ports:
+  - port: {{ mser_port }}
+    name: matches-port
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ backend_name }}-match-server
+  labels:
+    name: {{ backend_name }}
+    job: match-server
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ backend_name }}
+        job: match-server
+    spec:
+      nodeSelector:
+        type: cpu
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ backend_name }}-match-server
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: {{ mser_port }}
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+{% endif %}
+        volumeMounts:
+          - mountPath: {{ output_pgn_dir_local }}
+            name: data-dir
+            subPath: {{ output_pgn_dir_pvc }}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "distladder3.bin.run_match_server"
+        - "--port={{ mser_port }}"
+        - "--output_pgn_dir={{ output_pgn_dir_local }}"
+{% endif %}
+{# endif run_match_server #}
+
+{# --- match workers --- #}
+{% if run_match_worker %}
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ backend_name }}-match-worker
+  labels:
+    name: {{ backend_name }}
+    job: match-worker
+spec:
+  replicas: {{ n_workers }}
+  template:
+    metadata:
+      labels:
+        name: {{ backend_name }}
+        job: match-worker
+    spec:
+      nodeSelector:
+        type: cpu
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ backend_name }}-match-worker
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - mountPath: {{ chkpoints_root_dir_local }}
+            name: data-dir
+            subPath: {{ chkpoints_root_dir_pvc }}
+          - mountPath: {{ eval_working_dir_local }}
+            name: data-dir
+            subPath: {{ eval_working_dir_pvc }}
+          - mountPath: {{ worker_logs_dir_local }}
+            name: data-dir
+            subPath: {{ worker_logs_dir_pvc }}
+          - mountPath: {{ replay_ds_dir_local }}
+            name: data-dir
+            subPath: {{ replay_ds_dir_pvc }}
+        ports:
+        - containerPort: {{ sc2_port }}
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 3000m
+            memory: 6Gi
+{% endif %}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "distladder3.bin.run_match_worker"
+        - "--match_server_endpoint={{ backend_name }}-match-server:{{ mser_port }}"
+        - "--log_dir={{ worker_logs_dir_local }}"
+        - "--game_port={{ sc2_port }}"
+        - "--game_version={{ sc2_game_version }}"
+        - "--map={{ sc2_map }}"
+        - "--timeout=36000"
+{% endif %}
+{# endif run_match_worker #}
+
+{# --- pgn ratings --- #}
+{% if run_pgn_ratings %}
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ backend_name }}-pgn-ratings
+  labels:
+    name: {{ backend_name }}
+    job: pgn-ratings
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ backend_name }}
+        job: pgn-ratings
+    spec:
+      nodeSelector:
+        type: cpu
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ backend_name }}-pgn-ratings
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+{% if use_resource %}
+        resources:
+          limits:
+            cpu: 2
+            memory: 4Gi
+          requests:
+            cpu: 2
+            memory: 4Gi
+{% endif %}
+        volumeMounts:
+          - mountPath: {{ watched_pgn_files_dir_local }}
+            name: data-dir
+            subPath: {{ watched_pgn_files_dir_pvc }}
+          - mountPath: {{ pr_output_dir_local }}
+            name: data-dir
+            subPath: {{ pr_output_dir_pvc }}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "distladder3.bin.run_pgn_ratings"
+        - "--watched_pgn_files_dir={{ watched_pgn_files_dir_local }}"
+        - "--output_dir={{ pr_output_dir_local }}"
+{% endif %}
+{# endif run_pgn_ratings #}
+
+{# --- results collector --- #}
+{% if run_results_collector %}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ backend_name }}-results-collector
+  labels:
+    name: {{ backend_name }}
+    job: results-collector
+spec:
+  selector:
+    name: {{ backend_name }}
+    job: results-collector
+  ports:
+  - port: {{ rc_port }}
+    name: rc-port
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ backend_name }}-results-collector
+  labels:
+    name: {{ backend_name }}
+    job: results-collector
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ backend_name }}
+        job: results-collector
+    spec:
+      nodeSelector:
+        type: cpu
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ backend_name }}-results-collector
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - mountPath: {{ watched_results_dir_local }}
+            name: data-dir
+            subPath: {{ watched_results_dir_pvc }}
+        ports:
+        - containerPort: {{ rc_port }}
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+{% endif %}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "distladder3.bin.run_results_collector"
+        - "--port={{ rc_port }}"
+        - "--watched_results_dir={{ watched_results_dir_local }}"
+{% endif %}
+{# endif run_results_collector #}
+
+{# --- web service --- #}
+{% if run_web_svc %}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ backend_name }}-web-svc
+  labels:
+    role: {{ backend_name }}-web-svc
+    name: {{ backend_name }}
+    job: web-svc
+spec:
+  selector:
+    name: {{ backend_name }}
+    job: web-svc
+  ports:
+  - port: {{ web_port }}
+    targetPort: {{ web_port }}
+    name: web-port
+    protocol: TCP
+  type: LoadBalancer
+---
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ backend_name }}-web-svc
+  labels:
+    role: {{ backend_name }}-web-svc
+    name: {{ backend_name }}
+    job: web-svc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+     role: {{ backend_name }}-web-svc
+  template:
+    metadata:
+      labels:
+        role: {{ backend_name }}-web-svc
+        name: {{ backend_name }}
+        job: web-svc
+    spec:
+      nodeSelector:
+        type: cpu
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ backend_name }}-web-svc
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - mountPath: {{ eval_working_dir_local }}
+            name: data-dir
+            subPath: {{ eval_working_dir_pvc }}
+        ports:
+        - containerPort: {{ web_port }}
+{% if use_resource %}
+        resources:
+          limits:
+            cpu: 2
+            memory: 4Gi
+          requests:
+            cpu: 2
+            memory: 4Gi
+{% endif %}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "distladder3.bin.run_web_svc"
+        - "--watched_dir={{ eval_working_dir_local }}"
+        - "--port={{ web_port }}"
+{% endif %}
+{# endif run_web_svc #}
+
+{# --- web apis service --- #}
+{% if run_web_apis %}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ backend_name }}-web-apis
+  labels:
+    role: {{ backend_name }}-web-apis
+    name: {{ backend_name }}
+    job: web-apis
+spec:
+  selector:
+    name: {{ backend_name }}
+    job: web-svc
+  ports:
+  - port: {{ web_apis_port }}
+    targetPort: {{ web_apis_port }}
+    name: web-port
+    protocol: TCP
+  type: LoadBalancer
+---
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ backend_name }}-web-apis
+  labels:
+    role: {{ backend_name }}-web-apis
+    name: {{ backend_name }}
+    job: web-svc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+     role: {{ backend_name }}-web-apis
+  template:
+    metadata:
+      labels:
+        role: {{ backend_name }}-web-apis
+        name: {{ backend_name }}
+        job: web-svc
+    spec:
+      nodeSelector:
+        type: cpu
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ backend_name }}-web-apis
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: {{ web_apis_port }}
+{% if use_resource %}
+        resources:
+          limits:
+            cpu: 2
+            memory: 4Gi
+          requests:
+            cpu: 2
+            memory: 4Gi
+{% endif %}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "distladder3.bin.run_web_apis"
+        - "--player_manager_endpoint={{ backend_name }}-player-manager:{{ pm_port }}"
+        - "--match_scheduler_endpoint={{ backend_name }}-match-scheduler:{{ msch_port }}"
+        - "--match_server_endpoint={{ backend_name }}-match-server:{{ mser_port }}"
+        - "--results_collector_endpoint={{ backend_name }}-results-collector:{{ rc_port }}"
+        - "--port={{ web_apis_port }}"
+{% endif %}
+{# endif run_web_apis #}

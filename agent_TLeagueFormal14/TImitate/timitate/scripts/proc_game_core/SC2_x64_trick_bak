@@ -1,0 +1,7 @@
+#!/bin/sh
+# created by drwang(Wang Qing), 2019-10
+# modified by pythonsun(Peng Sun), 2020-5. Use env var
+[ -z "$GLIBC_BUILD" ] && echo "Our modified SC2_x64 requires the GLIBC_BUILD envrionment variable be defined. Build glibc-2.28 and set that ev" && exit 1
+builddir=$GLIBC_BUILD # shorter name
+GCONV_PATH="${builddir}/iconvdata" \
+exec    "${builddir}"/elf/ld-linux-x86-64.so.2 --library-path "${builddir}":"${builddir}"/math:"${builddir}"/elf:"${builddir}"/dlfcn:"${builddir}"/nss:"${builddir}"/nis:"${builddir}"/rt:"${builddir}"/resolv:"${builddir}"/crypt:"${builddir}"/nptl:$LD_LIBRARY_PATH `dirname $0`/SC2_x64.original "$@"

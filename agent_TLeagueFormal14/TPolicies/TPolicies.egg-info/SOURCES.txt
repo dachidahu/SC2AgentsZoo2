@@ -1,0 +1,12 @@
+README.md
+setup.py
+TPolicies.egg-info/PKG-INFO
+TPolicies.egg-info/SOURCES.txt
+TPolicies.egg-info/dependency_links.txt
+TPolicies.egg-info/requires.txt
+TPolicies.egg-info/top_level.txt
+tpolicies/__init__.py
+tpolicies/layers.py
+tpolicies/losses.py
+tpolicies/ops.py
+tpolicies/tp_utils.py

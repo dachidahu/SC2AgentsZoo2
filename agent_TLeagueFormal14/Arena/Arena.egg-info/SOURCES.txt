@@ -1,0 +1,8 @@
+README.md
+setup.py
+Arena.egg-info/PKG-INFO
+Arena.egg-info/SOURCES.txt
+Arena.egg-info/dependency_links.txt
+Arena.egg-info/requires.txt
+Arena.egg-info/top_level.txt
+arena/__init__.py

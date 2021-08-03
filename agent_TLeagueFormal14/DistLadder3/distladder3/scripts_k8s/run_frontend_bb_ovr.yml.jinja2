@@ -1,0 +1,87 @@
+{# common #}
+{% set frontend_name = "evfrontendYYMMDD-bb-ovr" %}
+{% set backend_name = "evbackendYYMMDD" %}
+{% set image = "ccr.ccs.tencentyun.com/sc2ai/distladder3-sc2agentszoo2-scii471:yymmdd" %}
+{% set docker_registry_credential = "tke-dockreg-cred" %}
+{% set pvc_name = "pvc-share-full" %}
+{% set eval_working_dir_local = "/root/work/" + backend_name %}
+{% set eval_working_dir_pvc = "eval_results/" + backend_name %}
+{# frontend tool  #}
+{% set player_manager_endpoint = backend_name + "-player-manager:5526" %}
+{% set match_scheduler_endpoint = backend_name + "-match-scheduler:5536" %}
+{% set results_collector_endpoint = backend_name + "-results-collector:5566" %}
+{% set primary_player_name_pattern = "0123:0135" %}
+{% set cycle = 3 %}
+{% set timestamp_criterion = 'latest' %}
+{% set oppo_player_names = [
+    "Default_AI_2",
+    "Default_AI_3",
+    "Default_AI_4",
+    "Default_AI_5",
+    "Default_AI_6",
+    "Default_AI_7",
+    "IL_MNet",
+    "0925R1",
+    "0925Z1",
+    "0925Z2"
+] %}
+{% set output_dir_local = eval_working_dir_local + "/" + frontend_name %}
+{% set output_dir_pvc = eval_working_dir_pvc + "/" + frontend_name %}
+{# miscellaneous #}
+{% set use_resource = True %}
+
+
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ frontend_name }}-frontend-tool
+  labels:
+    name: {{ frontend_name }}
+    job: frontend-tool
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ frontend_name }}
+        job: frontend-tool
+    spec:
+      nodeSelector:
+        type: cpu
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ frontend_name }}-frontend-tool
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - mountPath: {{ output_dir_local }}
+            name: data-dir
+            subPath: {{ output_dir_pvc }}
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 1
+            memory: 2Gi
+{% endif %}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "distladder3.bin.run_bb_ovr_winrate_viewer"
+        - "--player_manager_endpoint={{ player_manager_endpoint }}"
+        - "--match_scheduler_endpoint={{ match_scheduler_endpoint }}"
+        - "--results_collector_endpoint={{ results_collector_endpoint }}"
+        - "--primary_player_name_pattern={{ primary_player_name_pattern }}"
+{% for opn in oppo_player_names %}
+        - "--oppo_player_name={{ opn }}"
+{% endfor %}
+        - "--cycle={{ cycle }}"
+        - "--timestamp_criterion={{ timestamp_criterion }}"
+        - "--output_dir={{ output_dir_local }}"

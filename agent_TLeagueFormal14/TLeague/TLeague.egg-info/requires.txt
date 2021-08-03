@@ -1,0 +1,12 @@
+gym
+joblib
+numpy
+scipy
+pyzmq
+paramiko
+libtmux
+absl-py
+xlrd
+pyyaml
+psutil
+namedlist

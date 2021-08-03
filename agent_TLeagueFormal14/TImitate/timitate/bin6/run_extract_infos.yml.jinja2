@@ -1,0 +1,160 @@
+{# common #}
+{% set rp_name = "rp1703-infos-482" %}
+{% set image = "ccr.ccs.tencentyun.com/sc2ai/tleague:YYYYMMDDhhmmss" %}
+{% set docker_registry_credential = "tke-dockreg-cred" %}
+{% set pvc_name = "pvc-share-full" %}
+{% set pvc_bin_name = "pvc-share-bin" %}
+{% set replay_dir_pvc = "replays/ext482_zvz" %}
+{% set replay_dir_local = "/root/replays_files" %}
+{% set output_data_csv_pvc = "replays" %}
+{% set output_data_csv_local = "/root/replays_out" %}
+{% set sc2mv_bin_root_pvc = "SC2" %}
+{% set sc2mv_bin_root_local = "/root/SC2" %}
+{# master #}
+{% set master_port = 7788 %}
+{# worker #}
+{% set n_workers = 3 %}
+{% set game_version = '4.8.2' %}
+{# miscellaneous #}
+{% set use_node_selector = True %}
+{% set use_resource = True %}
+
+
+{# --- master --- #}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ rp_name }}-rp-master
+  labels:
+    name: {{ rp_name }}
+    job: rp-master
+spec:
+  selector:
+    name: {{ rp_name }}
+    job: rp-master
+  ports:
+  - port: {{ master_port }}
+    name: master-port
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ rp_name }}-rp-master
+  labels:
+    name: {{ rp_name }}
+    job: rp-master
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: {{ rp_name }}
+        job: rp-master
+    spec:
+{% if use_node_selector %}
+      nodeSelector:
+        type: cpu
+{% endif %}
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ rp_name }}-rp-master
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: {{ master_port }}
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+{% endif %}
+        volumeMounts:
+          - mountPath: {{ replay_dir_local }}
+            name: data-dir
+            subPath: {{ replay_dir_pvc }}
+          - mountPath: {{ output_data_src_path_local }}
+            name: data-dir
+            subPath: {{ output_data_src_path_pvc }}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "timitate.bin6.run_extract_infos"
+        - "--role=master"
+        - "--master_port={{ master_port }}"
+        - "--replay_dir={{ replay_dir_local }}"
+        - "--output_data_csv_path={{ output_data_csv_local }}/{{ rp_name }}.csv"
+
+
+{# --- workers --- #}
+---
+kind: ReplicaSet
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ rp_name }}-rp-worker
+  labels:
+    name: {{ rp_name }}
+    job: rp-worker
+spec:
+  replicas: {{ n_workers }}
+  template:
+    metadata:
+      labels:
+        name: {{ rp_name }}
+        job: rp-worker
+    spec:
+{% if use_node_selector %}
+      nodeSelector:
+        type: cpu
+{% endif %}
+      volumes:
+      - name: data-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_name }}
+      - name: bin-dir
+        persistentVolumeClaim:
+          claimName: {{ pvc_bin_name }}
+{% if docker_registry_credential != "" %}
+      imagePullSecrets:
+      - name: {{ docker_registry_credential }}
+{% endif %}
+      containers:
+      - name: {{ rp_name }}-rp-worker
+        image: {{ image }}
+        imagePullPolicy: IfNotPresent
+        volumeMounts:
+          - mountPath: {{ replay_dir_local }}
+            name: data-dir
+            subPath: {{ replay_dir_pvc }}
+          - mountPath: {{ output_data_csv_local }}
+            name: data-dir
+            subPath: {{ output_data_csv_pvc }}
+          - mountPath: {{ sc2mv_bin_root_local }}
+            name: bin-dir
+            subPath: {{ sc2mv_bin_root_pvc }}
+{% if use_resource %}
+        resources:
+          requests:
+            cpu: 1820m
+            memory: 3.5Gi
+{% endif %}
+        command:
+        - "python"
+        args:
+        - "-m"
+        - "timitate.bin6.run_extract_infos"
+        - "--role=worker"
+        - "--master_port={{ master_port }}"
+        - "--master_hostname={{ rp_name }}-rp-master"
+        - "--output_data_csv_path={{ output_data_csv_local }}/{{ rp_name }}.csv"
+        - "--replay_dir={{ replay_dir_local }}"
+        - "--game_version={{ game_version }}"
+        - "--sc2mv_bin_root={{ sc2mv_bin_root_local }}"

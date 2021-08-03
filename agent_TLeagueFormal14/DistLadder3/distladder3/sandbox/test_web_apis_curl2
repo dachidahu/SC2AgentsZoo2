@@ -1,0 +1,29 @@
+# player-names
+curl http://127.0.0.1:8848/api/v1/player-names \
+    -X GET
+
+# match-manager
+curl http://127.0.0.1:8848/api/v1/match-manager \
+    -X PUT \
+    -d "player_name0=init_model:0008_20190701" \
+    -d "player_name1=Default_AI_6" \
+    -d "n_matches_scheduled=2"
+curl http://127.0.0.1:8848/api/v1/match-manager \
+    -X PUT \
+    -d "player_name1=init_model:0008_20190701" \
+    -d "player_name0=Default_AI_6" \
+    -d "n_matches_scheduled=2"
+
+
+curl http://127.0.0.1:8848/api/v1/match-manager \
+    -X GET \
+    -d "player_name0=init_model:0008_20190701" \
+    -d "player_name1=Default_AI_6"
+curl http://127.0.0.1:8848/api/v1/match-manager \
+    -X GET \
+    -d "player_name1=init_model:0008_20190701" \
+    -d "player_name0=Default_AI_6"
+curl http://127.0.0.1:8848/api/v1/match-manager \
+    -X GET \
+    -d "player_name1=aaa" \
+    -d "player_name0=bbb"

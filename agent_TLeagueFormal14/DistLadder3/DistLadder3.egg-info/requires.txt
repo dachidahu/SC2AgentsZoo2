@@ -1,0 +1,9 @@
+pyzmq
+absl-py
+numpy
+matplotlib==3.1.1
+mpld3
+Werkzeug==0.15.6
+flask
+Flask-AutoIndex
+Flask-RESTful

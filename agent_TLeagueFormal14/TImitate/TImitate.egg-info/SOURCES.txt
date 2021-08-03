@@ -1,0 +1,9 @@
+README.md
+setup.py
+TImitate.egg-info/PKG-INFO
+TImitate.egg-info/SOURCES.txt
+TImitate.egg-info/dependency_links.txt
+TImitate.egg-info/requires.txt
+TImitate.egg-info/top_level.txt
+timitate/__init__.py
+timitate/base_converter.py
